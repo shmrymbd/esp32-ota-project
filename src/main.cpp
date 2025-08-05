@@ -451,10 +451,14 @@ void startBluetoothScan() {
 void setup() {
   Serial.begin(115200);
   Serial.println("[BOOT] Starting ESP32 BLE scanner...");
+  Serial.println("[DEBUG] Free Heap: " + String(ESP.getFreeHeap()));
+  Serial.println("[DEBUG] SDK Version: " + String(ESP.getSdkVersion()));
 
   // Initialize MQTT
+  Serial.println("[DEBUG] Initializing MQTT...");
   client.setServer(MQTT_HOST, MQTT_PORT);
   client.setCallback(mqttCallback);
+  Serial.println("[DEBUG] MQTT initialized");
   
   setupOTA();
   Serial.print("[INFO] ESP32 MAC Address: ");

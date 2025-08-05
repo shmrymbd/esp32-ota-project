@@ -136,7 +136,10 @@ graph TB
     Root[esp32-ota-project] -->|Source Code| SRC[src/]
     Root -->|Configuration| PIO[platformio.ini]
     Root -->|Documentation| DOC[Documentation/]
+    Root -->|Tools| TOOLS[tools/]
     SRC -->|Main Code| MAIN[main.cpp]
     DOC -->|OTA Guide| OTA[OTA_MQTT_GUIDE.md]
     DOC -->|Architecture| ARCH[PROJECT_ARCHITECTURE.md]
+    TOOLS -->|OTA Script| OTAPY[ota_updater.py]
+    TOOLS -->|Dependencies| REQ[requirements.txt]
 ```

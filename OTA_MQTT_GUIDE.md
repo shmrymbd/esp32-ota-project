@@ -46,6 +46,24 @@ Topic: traffic/bluetooth/ota
 Message: END
 ```
 
+# Python Requirements
+
+Before using the OTA update script, install the required Python packages:
+
+```bash
+pip install paho-mqtt
+```
+
+Create a `requirements.txt` file:
+```text
+paho-mqtt==1.6.1
+```
+
+Or install using the requirements file:
+```bash
+pip install -r requirements.txt
+```
+
 ### Python Script Example
 
 ```python
