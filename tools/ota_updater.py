@@ -22,10 +22,10 @@ DEFAULT_TIMEOUT = 60  # Default timeout in seconds
 
 # MQTT Topics (will be formatted with device_id)
 MQTT_TOPICS = {
-    'ota_command': "esp32/{device_id}/ota/command",
-    'ota_data': "esp32/{device_id}/ota/data",
-    'ota_status': "esp32/{device_id}/ota/status",
-    'ota_progress': "esp32/{device_id}/ota/progress"
+    'ota_command': "ble-scanner/{device_id}/ota/command",
+    'ota_data': "ble-scanner/{device_id}/ota/data",
+    'ota_status': "ble-scanner/{device_id}/ota/status",
+    'ota_progress': "ble-scanner/{device_id}/ota/progress"
 }
 
 class OTAUpdater:
