@@ -1,6 +1,6 @@
-# ESP32 OTA Project
+# BLE Scanner Project
 
-A comprehensive ESP32 project that combines Bluetooth Low Energy (BLE) scanning, MQTT communication, and Over-The-Air (OTA) firmware updates. This project creates a smart IoT device that can detect nearby Bluetooth devices and send data to an MQTT broker, while supporting remote firmware updates.
+A comprehensive ESP32-based BLE scanner project that combines Bluetooth Low Energy (BLE) scanning, MQTT communication, and Over-The-Air (OTA) firmware updates. This project creates a smart IoT device that can detect nearby Bluetooth devices and send data to an MQTT broker, while supporting remote firmware updates.
 
 ## 🚀 Features
 
@@ -34,8 +34,8 @@ A comprehensive ESP32 project that combines Bluetooth Low Energy (BLE) scanning,
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/shmrymbd/esp32-ota-project.git
-cd esp32-ota-project
+git clone https://github.com/shmrymbd/ble-scanner.git
+cd ble-scanner
 ```
 
 ### 2. Install Libraries

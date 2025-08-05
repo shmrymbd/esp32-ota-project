@@ -1,4 +1,4 @@
-# ESP32 OTA Project Architecture and Diagrams
+# BLE Scanner Project Architecture and Diagrams
 
 ## System Architecture
 
@@ -133,7 +133,7 @@ graph TB
 
 ```mermaid
 graph TB
-    Root[esp32-ota-project] -->|Source Code| SRC[src/]
+    Root[ble-scanner] -->|Source Code| SRC[src/]
     Root -->|Configuration| PIO[platformio.ini]
     Root -->|Documentation| DOC[Documentation/]
     Root -->|Tools| TOOLS[tools/]
