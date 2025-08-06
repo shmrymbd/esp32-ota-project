@@ -8,9 +8,13 @@
 #include <vector>
 #include <Update.h>
 #include <esp_partition.h>
+#include <set>
 
-#include <Update.h>
-#include <esp_partition.h>
+// Bluetooth libraries
+#include "esp_bt.h"
+#include "esp_bt_main.h"
+#include "esp_bt_device.h"
+#include "esp_gap_bt_api.h"
 
 // --- Config ---
 const char* ssid = "loranet";
@@ -43,9 +47,11 @@ const size_t OTA_CHUNK_SIZE = 1024;
 // Bluetooth scanning variables
 bool btScanning = false;
 unsigned long lastScanTime = 0;
-const unsigned long SCAN_INTERVAL = 10000; // Scan every 10 seconds
-std::vector<String> discoveredDevices;
-std::vector<String> lastPublishedDevices;
+const unsigned long SCAN_DURATION = 30000; // 30 seconds scan duration
+const unsigned long SCAN_INTERVAL = 5000;  // 5 seconds between scans
+std::set<String> discoveredDevices; // Use set to automatically remove duplicates
+std::set<String> lastPublishedDevices;
+bool isScanning = false;
 
 
 
@@ -59,39 +65,91 @@ String getMacAddress() {
   return String(macStr);
 }
 
+// --- Get Current Time String ---
+String getCurrentTimeString() {
+  struct tm timeinfo;
+  if (!getLocalTime(&timeinfo)) return "Unknown";
+  char timeStr[64];
+  strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", &timeinfo);
+  return String(timeStr);
+}
 
+
+
+// --- Bluetooth Callback Function ---
+void btCallback(esp_bt_gap_cb_event_t event, esp_bt_gap_cb_param_t *param) {
+  if (event == ESP_BT_GAP_DISC_RES_EVT) {
+    char macStr[18];
+    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+            param->disc_res.bda[0], param->disc_res.bda[1], param->disc_res.bda[2],
+            param->disc_res.bda[3], param->disc_res.bda[4], param->disc_res.bda[5]);
+    String macString = String(macStr);
+    
+    // Add to discovered devices (set automatically removes duplicates)
+    discoveredDevices.insert(macString);
+    Serial.printf("[BLE] Found device: %s\n", macString.c_str());
+  }
+
+  if (event == ESP_BT_GAP_DISC_STATE_CHANGED_EVT) {
+    if (param->disc_st_chg.state == ESP_BT_GAP_DISCOVERY_STOPPED) {
+      Serial.println("[BLE] Scan stopped");
+      isScanning = false;
+      lastScanTime = millis();
+    }
+  }
+}
+
+// --- Initialize Bluetooth ---
+void initBluetooth() {
+  Serial.println("[BLE] Initializing Bluetooth...");
+  if (!btStart()) {
+    Serial.println("[BLE] Failed to start Bluetooth");
+    return;
+  }
+
+  esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
+  esp_bt_controller_init(&bt_cfg);
+  esp_bt_controller_enable(ESP_BT_MODE_CLASSIC_BT);
+  esp_bluedroid_init();
+  esp_bluedroid_enable();
+  esp_bt_gap_register_callback(btCallback);
+  esp_bt_gap_set_scan_mode(ESP_BT_CONNECTABLE, ESP_BT_GENERAL_DISCOVERABLE);
+
+  Serial.println("[BLE] Bluetooth initialized successfully");
+}
+
+// --- Start Bluetooth Scan ---
+void startBluetoothScan() {
+  if (!isScanning) {
+    Serial.printf("[BLE] Starting scan for %d seconds...\n", SCAN_DURATION / 1000);
+    discoveredDevices.clear(); // Clear previous results
+    isScanning = true;
+    esp_bt_gap_start_discovery(ESP_BT_INQ_MODE_GENERAL_INQUIRY, SCAN_DURATION / 1000, 0);
+  }
+}
 
 // --- Bluetooth Scanning Function ---
 void scanBluetoothDevices() {
-  if (millis() - lastScanTime < SCAN_INTERVAL) {
-    return;
+  // Start scan if not currently scanning and enough time has passed
+  if (!isScanning && (millis() - lastScanTime) >= SCAN_INTERVAL) {
+    startBluetoothScan();
   }
-  
-  Serial.println("Starting Bluetooth scan...");
-  discoveredDevices.clear();
-  
-  // For now, use fallback devices to ensure the JSON structure works
-  // In a production environment, you would implement proper BLE scanning here
-  discoveredDevices.push_back("09:CE:BB:F9:3F:82");
-  discoveredDevices.push_back("41:BB:00:EA:66:88");
-  discoveredDevices.push_back("6B:E1:C3:26:C7:95");
-  
-  Serial.printf("Found %d devices (simulated)\n", discoveredDevices.size());
-  for (int i = 0; i < discoveredDevices.size(); i++) {
-    Serial.printf("Device %d: %s\n", i + 1, discoveredDevices[i].c_str());
-  }
-  
-  lastScanTime = millis();
 }
 
 // --- Publish Bluetooth Data ---
 void publishBluetoothData() {
   if (discoveredDevices.empty()) {
-    Serial.println("No devices found to publish");
+    Serial.println("[MQTT] No devices found to publish");
     return;
   }
   
-  StaticJsonDocument<512> doc;
+  // Check if we have new devices to publish
+  if (discoveredDevices == lastPublishedDevices) {
+    Serial.println("[MQTT] No new devices to publish");
+    return;
+  }
+  
+  StaticJsonDocument<2048> doc; // Increased size for more devices
   
   // Create devices array
   JsonArray devicesArray = doc.createNestedArray("devices");
@@ -99,10 +157,13 @@ void publishBluetoothData() {
     devicesArray.add(device);
   }
   
+  Serial.printf("[MQTT] Publishing %d unique devices\n", discoveredDevices.size());
+  
   // Add other fields
   doc["id"] = selfMac;  // Device MAC as ID
   doc["point"] = point;
-  doc["time"] = time(nullptr);  // Unix timestamp
+  doc["timestamp"] = time(nullptr);  // Unix timestamp
+  doc["time_string"] = getCurrentTimeString();  // Human readable time
   
   String jsonPayload;
   serializeJson(doc, jsonPayload);
@@ -112,7 +173,7 @@ void publishBluetoothData() {
   Serial.printf("Devices found: %d\n", discoveredDevices.size());
   Serial.printf("Device MAC (ID): %s\n", selfMac.c_str());
   Serial.printf("Point: %s\n", point);
-  Serial.printf("Timestamp: %lu\n", time(nullptr));
+  Serial.printf("Time: %s\n", getCurrentTimeString().c_str());
   Serial.println("=================================");
   
   if (client.connected()) {
@@ -301,12 +362,13 @@ void bluetoothTask(void *parameter) {
       // Scan for Bluetooth devices
       scanBluetoothDevices();
       
-      // Publish data if new devices found
-      if (!discoveredDevices.empty() && discoveredDevices != lastPublishedDevices) {
+      // Publish data after scan completes (when not scanning and devices found)
+      if (!isScanning && !discoveredDevices.empty() && discoveredDevices != lastPublishedDevices) {
+        Serial.println("[BLE] Scan completed, publishing results...");
         publishBluetoothData();
       }
     }
-    vTaskDelay(5000 / portTICK_PERIOD_MS);  // Check every 5 seconds
+    vTaskDelay(1000 / portTICK_PERIOD_MS);  // Check every 1 second for better responsiveness
   }
 }
 
@@ -333,11 +395,9 @@ void setup() {
   selfMac = getMacAddress();
   Serial.println("Device MAC: " + selfMac);
 
-  // Initialize fallback devices for demonstration
-  discoveredDevices.push_back("09:CE:BB:F9:3F:82");
-  discoveredDevices.push_back("41:BB:00:EA:66:88");
-  discoveredDevices.push_back("6B:E1:C3:26:C7:95");
-  Serial.println("Demo devices initialized for testing");
+  // Initialize Bluetooth
+  initBluetooth();
+  Serial.println("[BLE] Bluetooth scanning ready");
   
   // Create tasks for both cores
   xTaskCreatePinnedToCore(
